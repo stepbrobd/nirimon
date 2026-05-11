@@ -199,10 +199,7 @@ func (m model) renderHelp() string {
 	maxScroll := max(totalLines-contentHeight, 0)
 
 	// Ensure scroll offset is within bounds
-	scrollOffset := max(m.HelpScrollOffset, 0)
-	if scrollOffset > maxScroll {
-		scrollOffset = maxScroll
-	}
+	scrollOffset := min(max(m.HelpScrollOffset, 0), maxScroll)
 
 	// Build content without scroll bar
 	visibleLines := []string{}
