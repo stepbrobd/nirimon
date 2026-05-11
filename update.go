@@ -317,14 +317,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
-	case saveMsg:
-		if msg.success {
-			m.Status = "Configuration saved"
-		} else {
-			m.Status = fmt.Sprintf("Failed to save: %v", msg.err)
-		}
-		return m, nil
-
 	case revertMsg:
 		if msg.success {
 			m.Status = "Reverted to previous configuration"
@@ -578,9 +570,6 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		saveRollback(m.Monitors)
 		return m, applyCmd(m.Monitors)
 
-	case "s", "S":
-		return m, saveCmd(m.Monitors)
-
 	case "z", "Z":
 		return m, revertCmd()
 
@@ -630,35 +619,11 @@ func reloadMonitorsCmd() tea.Cmd {
 
 func applyCmd(monitors []Monitor) tea.Cmd {
 	return func() tea.Msg {
-		// Get current monitor names before applying changes
-		previousNames, _ := getCurrentMonitorNames()
-
-		// Apply the monitor configuration
+		// niri auto-evacuates workspaces from outputs it disables, so the
+		// hyprmon-era pre/post snapshot and migrateOrphanedWorkspaces dance
+		// is no longer needed
 		err := applyMonitors(monitors)
-		if err != nil {
-			return applyMsg{success: false, err: err}
-		}
-
-		// Get monitor names after applying changes
-		currentNames, _ := getCurrentMonitorNames()
-
-		// Migrate orphaned workspaces if monitors were removed
-		if err := migrateOrphanedWorkspaces(previousNames, currentNames); err != nil {
-			// Log the error but don't fail the apply operation
-			fmt.Printf("Warning: Failed to migrate workspaces: %v\n", err)
-		}
-
-		return applyMsg{success: true, err: nil}
-	}
-}
-
-func saveCmd(monitors []Monitor) tea.Cmd {
-	return func() tea.Msg {
-		err := writeConfig(monitors)
-		if err == nil {
-			err = reloadConfig()
-		}
-		return saveMsg{success: err == nil, err: err}
+		return applyMsg{success: err == nil, err: err}
 	}
 }
 

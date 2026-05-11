@@ -21,7 +21,6 @@ const (
 	configFileMode  = 0600
 	profileDirMode  = 0700
 	profileFileMode = 0600
-	backupFileMode  = 0600
 
 	// default world dimensions
 	defaultWorldWidth  = 3840
@@ -541,32 +540,6 @@ func getAvailableModes(monitorName string) ([]string, error) {
 		modes = append(modes, fmt.Sprintf("%dx%d@%.3fHz", m.Width, m.Height, hz))
 	}
 	return modes, nil
-}
-
-// the following are hyprmon-era call-site stubs; nirimon is apply-only so
-// these no-op pending the cleanup that removes the callers in profiles.go
-// and update.go
-
-func getCurrentMonitorNames() ([]string, error) {
-	return nil, nil
-}
-
-// migrateOrphanedWorkspaces is a no-op under niri, which evacuates workspaces
-// automatically when an output disables
-func migrateOrphanedWorkspaces(_, _ []string) error {
-	return nil
-}
-
-// writeConfig is a no-op under nirimon; profile JSON is the source of truth
-// and runtime application is via `niri msg output`
-func writeConfig(_ []Monitor) error {
-	return nil
-}
-
-// reloadConfig is a no-op under nirimon; niri auto-reloads its own config and
-// `niri msg output` changes are runtime-temporary
-func reloadConfig() error {
-	return nil
 }
 
 // rollback state

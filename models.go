@@ -114,11 +114,6 @@ type applyMsg struct {
 	err     error
 }
 
-type saveMsg struct {
-	success bool
-	err     error
-}
-
 type revertMsg struct {
 	success bool
 	err     error
