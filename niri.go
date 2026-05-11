@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
 	"os/exec"
 	"sort"
@@ -236,26 +237,29 @@ func niriModeToMode(m niriMode) Mode {
 }
 
 // buildEDIDName produces the space-separated "make model serial" form niri
-// accepts as an output identifier; serial is omitted when absent
+// uses as an output identifier; when serial is absent the literal "Unknown"
+// is substituted to match niri's own formatting (niri msg output silently
+// treats "BOE NE135A1M-NY1" as a different, unconnected output while
+// "BOE NE135A1M-NY1 Unknown" matches the actual laptop panel)
 func buildEDIDName(make_, model string, serial *string) string {
-	parts := []string{strings.TrimSpace(make_), strings.TrimSpace(model)}
+	mk := strings.TrimSpace(make_)
+	md := strings.TrimSpace(model)
+	sr := ""
 	if serial != nil {
-		if s := strings.TrimSpace(*serial); s != "" {
-			parts = append(parts, s)
-		}
+		sr = strings.TrimSpace(*serial)
 	}
-	out := ""
-	for _, p := range parts {
-		if p == "" {
-			continue
-		}
-		if out == "" {
-			out = p
-		} else {
-			out = out + " " + p
-		}
+	if sr == "" {
+		sr = "Unknown"
 	}
-	return out
+	parts := []string{}
+	if mk != "" {
+		parts = append(parts, mk)
+	}
+	if md != "" {
+		parts = append(parts, md)
+	}
+	parts = append(parts, sr)
+	return strings.Join(parts, " ")
 }
 
 func readMonitors() ([]Monitor, error) {
@@ -353,9 +357,158 @@ func readMonitors() ([]Monitor, error) {
 	return monitors, nil
 }
 
-// applyMonitor is implemented in a follow-up commit
+// niriOutputName picks the EDID-style identifier when available; niri keys
+// outputs by the EDID string and that survives connector reassignment across
+// reboots, while the bare connector Name is unstable. The connector Name is
+// the fallback for legacy profiles that lack an EDIDName
+func niriOutputName(m Monitor) string {
+	if s := strings.TrimSpace(m.EDIDName); s != "" {
+		return s
+	}
+	return m.Name
+}
+
+// snapMode picks the niri mode whose width and height match exactly and whose
+// refresh rate is closest to wantedHz (in float Hz). The returned string is
+// formatted directly from the millihertz integer so it byte-matches what niri
+// reports in `niri msg --json outputs`. A delta beyond 1 Hz is rejected since
+// niri silently no-ops on a non-matching mode string
+func snapMode(modes []niriMode, w, h uint32, wantedHz float32) (string, error) {
+	bestIdx := -1
+	bestDelta := math.Inf(1)
+	for i := range modes {
+		if uint32(modes[i].Width) != w || uint32(modes[i].Height) != h {
+			continue
+		}
+		hz := float64(modes[i].RefreshRate) / 1000.0
+		d := math.Abs(hz - float64(wantedHz))
+		if d < bestDelta {
+			bestDelta = d
+			bestIdx = i
+		}
+	}
+	if bestIdx < 0 || bestDelta > 1.0 {
+		return "", fmt.Errorf("no niri mode matches %dx%d@%.3f within 1Hz", w, h, wantedHz)
+	}
+	mhz := modes[bestIdx].RefreshRate
+	return fmt.Sprintf("%dx%d@%d.%03d", modes[bestIdx].Width, modes[bestIdx].Height, mhz/1000, mhz%1000), nil
+}
+
+// niriTransformString maps the hyprmon Transform int code 0-7 to the lowercase
+// kebab-case form niri's CLI accepts (the IPC JSON returns TitleCase, see
+// parseNiriTransform for the inverse)
+func niriTransformString(t int) string {
+	switch t {
+	case 0:
+		return "normal"
+	case 1:
+		return "90"
+	case 2:
+		return "180"
+	case 3:
+		return "270"
+	case 4:
+		return "flipped"
+	case 5:
+		return "flipped-90"
+	case 6:
+		return "flipped-180"
+	case 7:
+		return "flipped-270"
+	default:
+		return "normal"
+	}
+}
+
+// applyVRR runs the right vrr subcommand for hyprmon's VRR enum
+// 0 = off, 1 = on, 2 = on-demand (hyprland called this "fullscreen-only")
+func applyVRR(output string, vrr int) error {
+	switch vrr {
+	case 1:
+		_, err := execNiri("output", output, "vrr", "on")
+		return err
+	case 2:
+		_, err := execNiri("output", output, "vrr", "on", "--on-demand")
+		return err
+	default:
+		_, err := execNiri("output", output, "vrr", "off")
+		return err
+	}
+}
+
 func applyMonitor(m Monitor) error {
-	return fmt.Errorf("applyMonitor not yet implemented for %s", m.Name)
+	output := niriOutputName(m)
+
+	// off path: a single command, no further configuration
+	if !m.Active {
+		if _, err := execNiri("output", output, "off"); err != nil {
+			return fmt.Errorf("disable %s: %w", output, err)
+		}
+		return nil
+	}
+
+	// re-fetch live modes for exact-string snapping; the wanted mode in the
+	// profile is float Hz but niri keys modes by exact millihertz, and the
+	// available set may shift between save and apply
+	var outputs map[string]niriOutput
+	if err := execNiriJSON(&outputs, "outputs"); err != nil {
+		return fmt.Errorf("list outputs while applying %s: %w", output, err)
+	}
+	out, ok := outputs[m.Name]
+	if !ok {
+		// fall back to scanning by EDID-derived identifier; the connector
+		// Name may have shifted since the profile was saved
+		for _, o := range outputs {
+			oSerial := (*string)(nil)
+			if o.Serial != nil {
+				s := *o.Serial
+				oSerial = &s
+			}
+			if buildEDIDName(o.Make, o.Model, oSerial) == output {
+				out = o
+				ok = true
+				break
+			}
+		}
+	}
+	if !ok {
+		return fmt.Errorf("output %q is not currently connected", output)
+	}
+
+	if _, err := execNiri("output", output, "on"); err != nil {
+		return fmt.Errorf("enable %s: %w", output, err)
+	}
+
+	if m.IsMirrored {
+		fmt.Fprintf(os.Stderr, "warning: niri has no native mirror; %s applied as a normal output\n", output)
+	}
+
+	modeStr, err := snapMode(out.Modes, m.PxW, m.PxH, m.Hz)
+	if err != nil {
+		return fmt.Errorf("snap mode for %s: %w", output, err)
+	}
+	if _, err := execNiri("output", output, "mode", modeStr); err != nil {
+		return fmt.Errorf("set mode for %s: %w", output, err)
+	}
+
+	if _, err := execNiri("output", output, "scale", fmt.Sprintf("%g", m.Scale)); err != nil {
+		return fmt.Errorf("set scale for %s: %w", output, err)
+	}
+
+	if _, err := execNiri("output", output, "position", "set",
+		strconv.Itoa(int(m.X)), strconv.Itoa(int(m.Y))); err != nil {
+		return fmt.Errorf("set position for %s: %w", output, err)
+	}
+
+	if _, err := execNiri("output", output, "transform", niriTransformString(m.Transform)); err != nil {
+		return fmt.Errorf("set transform for %s: %w", output, err)
+	}
+
+	if err := applyVRR(output, m.VRR); err != nil {
+		return fmt.Errorf("set vrr for %s: %w", output, err)
+	}
+
+	return nil
 }
 
 func applyMonitors(monitors []Monitor) error {

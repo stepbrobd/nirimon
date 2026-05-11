@@ -85,6 +85,13 @@ func resolveProfileMonitors(saved, current []Monitor) []Monitor {
 		if resolvedMon.HardwareID == "" {
 			resolvedMon.HardwareID = currentMon.HardwareID
 		}
+		// refresh the EDID-derived identifier so apply-time `niri msg output`
+		// commands speak niri's literal name even when the saved profile was
+		// written by an older hyprmon version that omitted the "Unknown"
+		// serial sentinel
+		if currentMon.EDIDName != "" {
+			resolvedMon.EDIDName = currentMon.EDIDName
+		}
 		resolved = append(resolved, resolvedMon)
 	}
 
