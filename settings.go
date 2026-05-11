@@ -7,13 +7,13 @@ import (
 	"path/filepath"
 )
 
-// MonitorPref holds per-monitor hyprmon preferences, keyed in Settings by
+// MonitorPref holds per-monitor nirimon preferences, keyed in Settings by
 // the monitor's HardwareID.
 type MonitorPref struct {
 	UseDescFormat bool `json:"use_desc_format,omitempty"`
 }
 
-// Settings is the on-disk hyprmon settings file.
+// Settings is the on-disk nirimon settings file.
 type Settings struct {
 	MonitorPrefs map[string]MonitorPref `json:"monitor_prefs,omitempty"`
 }
@@ -28,7 +28,7 @@ func getSettingsDir() string {
 	if err != nil {
 		return ""
 	}
-	return filepath.Join(home, ".config", "hyprmon")
+	return filepath.Join(home, ".config", "nirimon")
 }
 
 func getSettingsPath() string {

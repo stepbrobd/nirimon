@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Install git hooks for HyprMon project
+# install git hooks for nirimon project
 
 set -e
 
@@ -14,7 +14,7 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
-echo "Installing git hooks for HyprMon..."
+echo "Installing git hooks for nirimon..."
 
 # Check if we're in a git repository
 if [ ! -d "$PROJECT_ROOT/.git" ]; then
@@ -29,8 +29,8 @@ mkdir -p "$GIT_HOOKS_DIR"
 cat > "$GIT_HOOKS_DIR/pre-commit" << 'EOF'
 #!/bin/bash
 
-# HyprMon pre-commit hook
-# Runs gofmt check before allowing commit
+# nirimon pre-commit hook
+# runs gofmt check before allowing commit
 
 set -e
 
@@ -76,9 +76,9 @@ fi
 echo -e "${GREEN}✓ go vet check passed${NC}"
 
 # Check for binary files in bin/
-if [ -f "bin/hyprmon" ]; then
-    echo -e "${YELLOW}⚠ Warning: Binary file found in bin/hyprmon${NC}"
-    echo "Consider removing it before committing: rm bin/hyprmon"
+if [ -f "bin/nirimon" ]; then
+    echo -e "${YELLOW}⚠ Warning: Binary file found in bin/nirimon${NC}"
+    echo "Consider removing it before committing: rm bin/nirimon"
 fi
 
 # Check for large files (over 1MB)
@@ -98,8 +98,8 @@ chmod +x "$GIT_HOOKS_DIR/pre-commit"
 cat > "$GIT_HOOKS_DIR/pre-push" << 'EOF'
 #!/bin/bash
 
-# HyprMon pre-push hook
-# Runs tests before pushing
+# nirimon pre-push hook
+# runs tests before pushing
 
 set -e
 
@@ -131,12 +131,12 @@ fi
 
 # Build check
 echo "Checking if project builds..."
-if ! go build -o /tmp/hyprmon-test > /dev/null 2>&1; then
+if ! go build -o /tmp/nirimon-test > /dev/null 2>&1; then
     echo -e "${RED}❌ Build failed!${NC}"
     echo "Run 'go build' to see details"
     exit 1
 fi
-rm -f /tmp/hyprmon-test
+rm -f /tmp/nirimon-test
 echo -e "${GREEN}✓ Build check passed${NC}"
 
 echo -e "${GREEN}✓ All pre-push checks passed!${NC}"

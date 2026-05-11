@@ -34,7 +34,7 @@ func getProfilesDir() string {
 	if err != nil {
 		return ""
 	}
-	return filepath.Join(home, ".config", "hyprmon", "profiles")
+	return filepath.Join(home, ".config", "nirimon", "profiles")
 }
 
 func ensureProfilesDir() error {
@@ -718,7 +718,7 @@ func (m profileMenuModel) renderHelp() string {
 	var content strings.Builder
 
 	// Title and version
-	content.WriteString(titleStyle.Render(fmt.Sprintf("HyprMon Profiles %s", ShortVersion())))
+	content.WriteString(titleStyle.Render(fmt.Sprintf("nirimon Profiles %s", ShortVersion())))
 	content.WriteString("\n")
 	content.WriteString("Copyright © 2025 Eran Sandler\n\n")
 	content.WriteString("Profile management for saved monitor configurations.\n")
@@ -765,15 +765,15 @@ func (m profileMenuModel) renderHelp() string {
 	content.WriteString("\n")
 	content.WriteString("• Profiles save your complete monitor configuration\n")
 	content.WriteString("• Includes position, resolution, refresh rate, and scale\n")
-	content.WriteString("• Profiles are stored in ~/.config/hyprmon/profiles/\n")
+	content.WriteString("• Profiles are stored in ~/.config/nirimon/profiles/\n")
 	content.WriteString("• Custom ordering is preserved between sessions\n")
-	content.WriteString("• Use 'hyprmon -profile NAME' to apply directly from CLI\n")
+	content.WriteString("• Use 'nirimon -profile NAME' to apply directly from CLI\n")
 
 	// Menu Options
 	content.WriteString(sectionStyle.Render("\nMenu Options:"))
 	content.WriteString("\n")
 	content.WriteString("• Profile names: Your saved monitor configurations\n")
-	content.WriteString("• [Open Full UI]: Launch the main HyprMon interface\n")
+	content.WriteString("• [Open Full UI]: Launch the main nirimon interface\n")
 
 	content.WriteString("\n")
 	content.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("241")).Render("Press any key to close help"))
@@ -794,7 +794,7 @@ func (m profileMenuModel) View() string {
 		Foreground(lipgloss.Color("12")).
 		MarginBottom(1)
 
-	s.WriteString(titleStyle.Render("HyprMon - Profile Selection"))
+	s.WriteString(titleStyle.Render("nirimon - Profile Selection"))
 	s.WriteString("\n\n")
 
 	if m.err != nil {

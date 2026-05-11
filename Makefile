@@ -1,7 +1,7 @@
 .PHONY: build run install uninstall clean test profiles help
 
 # Variables
-BINARY_NAME := hyprmon
+BINARY_NAME := nirimon
 INSTALL_DIR := /usr/local/bin
 BIN_DIR := ./bin
 BUILD_DIR := ./build
@@ -139,7 +139,7 @@ hooks:
 
 # Show help
 help:
-	@echo "HyprMon Makefile"
+	@echo "nirimon Makefile"
 	@echo ""
 	@echo "Usage:"
 	@echo "  make [target]"

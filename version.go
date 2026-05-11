@@ -15,7 +15,7 @@ var (
 
 // VersionInfo returns formatted version information
 func VersionInfo() string {
-	return fmt.Sprintf("HyprMon %s (commit: %s, built: %s, go: %s)",
+	return fmt.Sprintf("nirimon %s (commit: %s, built: %s, go: %s)",
 		Version, GitCommit, BuildDate, GoVersion)
 }
 

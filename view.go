@@ -130,7 +130,7 @@ func (m model) renderHelp() string {
 	var allLines []string
 
 	// Title and version
-	allLines = append(allLines, titleStyle.Render(fmt.Sprintf("HyprMon %s", ShortVersion())))
+	allLines = append(allLines, titleStyle.Render(fmt.Sprintf("nirimon %s", ShortVersion())))
 	allLines = append(allLines, "Copyright © 2025 Eran Sandler")
 	allLines = append(allLines, "")
 	allLines = append(allLines, "A visual monitor configuration tool for Hyprland window manager.")
@@ -273,7 +273,7 @@ func (m model) renderHeader() string {
 	// Add version if not "dev"
 	header := fmt.Sprintf("%s   %s", grid, snap)
 	if Version != "dev" {
-		header = fmt.Sprintf("HyprMon %s  |  %s", ShortVersion(), header)
+		header = fmt.Sprintf("nirimon %s  |  %s", ShortVersion(), header)
 	}
 
 	return headerStyle.Render(header)

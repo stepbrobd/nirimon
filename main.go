@@ -24,7 +24,7 @@ func main() {
 	flag.BoolVar(&showActiveProfile, "active-profile", false, "Show currently active profile name")
 	flag.BoolVar(&showVersion, "version", false, "Show version information")
 	flag.BoolVar(&showVersion, "v", false, "Show version information (short)")
-	flag.StringVar(&configPath, "cfg", "", "Path to store/read configuration files (default: ~/.config/hyprmon)")
+	flag.StringVar(&configPath, "cfg", "", "Path to store/read configuration files (default: ~/.config/nirimon)")
 	flag.Parse()
 
 	// Set custom config path if provided

@@ -1,4 +1,4 @@
-module hyprmon
+module github.com/stepbrobd/nirimon
 
 go 1.26
 
