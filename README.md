@@ -1,332 +1,129 @@
-# HyprMon
+# nirimon
 
-HyprMon is a TUI (Terminal User Interface) tool for configuring monitors on Arch Linux running Wayland with Hyprland. It provides a visual "desk map" where you can arrange monitors using keyboard and mouse controls, with real-time application to Hyprland.
+nirimon is a TUI for arranging monitors under the niri Wayland compositor. It provides a visual "desk map" where you arrange outputs with the keyboard or mouse, and applies the layout live via niri's IPC.
 
-## Features
+nirimon is a niri-only fork of [hyprmon](https://github.com/erans/hyprmon) (Eran Sandler, Apache 2.0). All hyprland-specific code paths were stripped; profile JSON is preserved byte-for-byte so existing hyprmon profiles round-trip.
 
-- **Visual Monitor Layout**: See all your monitors as proportional boxes in a spatial map
-- **Keyboard & Mouse Control**: Move monitors with arrow keys or drag them with your mouse
-- **Smart Snapping**: Automatic edge and center alignment with visual guides
-- **Grid Movement**: Configurable grid sizes (1, 8, 16, 32, 64 pixels)
-- **Scale Selection**: Interactive menu with common DPI scaling values (0.5x to 3.0x)
-- **Resolution & Refresh Rate**: Choose from all available display modes (1080p@144Hz, 4K@60Hz, etc.)
-- **Advanced Display Settings**: Color depth (8/10-bit), color management (sRGB/Wide/HDR), VRR, rotation/transform
-- **HDR Support**: HDR color mode with SDR brightness and saturation controls
-- **Monitor Mirroring**: Mirror one monitor to another with visual feedback and circular dependency prevention
-- **Visual Indicators**: Monitor boxes show HDR, 10-bit, VRR, transform status, and mirror relationships
-- **Live Apply**: Instantly apply changes to Hyprland or save them to configuration
-- **Safe Rollback**: Revert to previous configuration if something goes wrong
-- **Automatic Backups**: Creates timestamped backups before modifying config files
-- **Monitor Profiles**: Save and restore different monitor configurations
+## Status
 
-## Screenshots
+Apply-only. nirimon does not write to `~/.config/niri/config.kdl` or any other persistent niri config file. Monitor application is via `niri msg output ...` calls, which are runtime-temporary: a niri reload (config edit, `niri msg action load-config-file`, or restart) reverts them. Persistence belongs to the profile json files in `~/.config/nirimon/profiles/`; re-apply on niri reload with `nirimon -profile <name>`.
 
-![Main Screen](./img/hyprmon.png)
-
-![Profiles Screen](./img/hyprmon-profiles.png)
-
-## Installation
-
-### Arch Linux
-
-[![AUR package](https://repology.org/badge/version-for-repo/aur/hyprmon.svg)](https://repology.org/project/hyprmon/versions)
+## Build
 
 ```bash
-yay -S hyprmon-bin
+go build -o nirimon .
 ```
 
-### Nix
-
-[![nixpkgs unstable package](https://repology.org/badge/version-for-repo/nix_unstable/hyprmon.svg)](https://repology.org/project/hyprmon/versions)
-
-#### Try it!
-
-If you have Nix setup you can try out `hyprmon` without installing it:
-
-```bash
-nix run nixpkgs#hyprmon
-```
-
-#### From Nixpkgs
-
-```nix
-{pkgs, ... }: {
-  environment.systemPackages = [ # or home.packages
-    pkgs.hyprmon
-  ];
-}
-```
-
-#### Prerequisites
-
-- Go 1.20 or higher
-- Hyprland window manager
-- `hyprctl` command available
-- Optional: `wlr-randr` for additional monitor detection
-
-#### Build from Source
-
-```bash
-git clone https://github.com/erans/hyprmon.git
-cd hyprmon
-go build -o hyprmon
-sudo mv hyprmon /usr/local/bin/
-```
+Requires Go 1.26+ and a running niri compositor with `niri` on PATH.
 
 ## Usage
 
-### Main UI
 ```bash
-hyprmon
+nirimon                       # main TUI
+nirimon profiles              # profile selection menu
+nirimon -profile work         # apply a saved profile directly
+nirimon --list-profiles       # list profile names (active marked with *)
+nirimon --active-profile      # print the name of the currently matching profile
 ```
 
-### Profile Management
-```bash
-# Apply a saved profile directly
-hyprmon --profile work
+## Keyboard Controls
 
-# Show profile selection menu
-hyprmon profiles
-```
-
-### Keyboard Controls (Main UI)
+Main UI:
 
 | Key | Action |
 |-----|--------|
-| `↑↓←→` or `hjkl` | Move selected monitor by grid size |
-| `Shift+↑↓←→` | Move by 10× grid size |
-| `Tab` / `Shift+Tab` | Cycle through monitors |
-| `G` | Change grid size (1, 8, 16, 32, 64 px) |
-| `L` | Toggle snap mode (Off, Edges, Centers, Both) |
-| `R` | Open scale selector with common DPI values |
-| `F` | Open resolution & refresh rate mode picker |
-| `[` / `]` | Decrease/Increase scale by 0.05 |
-| `Enter` or `Space` | Toggle monitor active/inactive |
-| `C` or `D` | Open advanced display settings dialog |
-| `M` | Open monitor mirroring configuration |
-| `A` | Apply changes live to Hyprland |
-| `S` | Save changes to configuration file |
-| `P` | Save current layout as named profile |
-| `Z` | Revert to previous configuration |
-| `Q` or `Ctrl+C` | Quit |
+| Arrow keys / hjkl | Move selected monitor by the grid step |
+| Shift + arrows | Move by 10x grid step |
+| Tab / Shift-Tab | Cycle through monitors |
+| G | Cycle grid size (1, 8, 16, 32, 64 px) |
+| L | Cycle snap mode (Off, Edges, Centers, Both) |
+| R | Open scale picker |
+| F | Open mode (resolution + refresh) picker |
+| M | Open mirror configuration (no effect on niri) |
+| C / D | Open advanced display settings dialog |
+| Enter / Space | Toggle the selected monitor on/off |
+| A | Apply the current layout to niri now |
+| Z | Revert to previous configuration |
+| O | Open the profiles page |
+| P | Save current layout as a named profile |
+| ? | Show help |
+| Q / Ctrl-C | Quit |
 
-### Mouse Controls
+There is no "save to config" keybind; nirimon does not write to niri's KDL config. Use `P` to save a profile and `A` to apply it. After a niri reload, re-apply with `nirimon -profile <name>`.
+
+## Mouse Controls
 
 | Action | Effect |
 |--------|--------|
-| Left Click | Select monitor |
-| Left Drag | Move monitor (with snapping) |
-| Right Click | Toggle monitor active/inactive |
-| Scroll Wheel | Adjust monitor scale |
-
-### Visual Indicators
-
-- **Green boxes**: Active monitors
-- **Gray boxes**: Inactive monitors
-- **Double border**: Currently selected monitor
-- **Alignment guides**: Appear when monitors align
-- **Status badges**: HDR, 10-bit, VRR, and rotation indicators on monitor boxes
-- **Mirror indicators**: →source (mirroring from) and ←target (mirroring to) with dotted lines
-
-## Advanced Display Settings
-
-Press `C` or `D` in the main UI to open the advanced display settings dialog for the selected monitor. This allows you to configure:
-
-### Color Settings
-- **Color Depth**: Switch between 8-bit and 10-bit color depth
-- **Color Mode**: Choose from Auto, sRGB, Wide, HDR, or HDR-EDID color management
-- **SDR Controls**: When in HDR mode, adjust SDR brightness (0.5-2.0) and saturation (0.5-1.5)
-
-### Display Features  
-- **VRR (Variable Refresh Rate)**: Configure VRR mode as Off, On, or Fullscreen-only
-- **Transform**: Set monitor rotation (Normal, 90°, 180°, 270°) or flipping
-
-### Advanced Dialog Controls
-| Key | Action |
-|-----|--------|
-| `Tab` / `↑↓` | Navigate between settings |
-| `Space` | Toggle boolean settings |
-| `←→` | Adjust slider values (SDR brightness/saturation) |
-| `Enter` | Apply changes and close dialog |
-| `Esc` | Cancel changes and close dialog |
-
-## Monitor Mirroring
-
-Press `M` in the main UI to configure monitor mirroring for the selected monitor. This allows you to:
-
-- **Mirror to another monitor**: Show the same content on both displays
-- **Visual feedback**: See mirror relationships with directional indicators and dotted lines
-- **Circular dependency prevention**: Automatically prevents invalid mirror chains (A→B→C→A)
-- **Real-time validation**: Immediate feedback if a mirror configuration would be invalid
-
-### Mirror Configuration Controls
-| Key | Action |
-|-----|--------|
-| `↑↓` | Navigate between available source monitors |
-| `Enter` | Set selected monitor as mirror source |
-| `D` | Disable mirroring (no source) |
-| `Esc` | Cancel and close mirror picker |
-
-### Mirror Troubleshooting
-- **Invalid mirror chains**: The system prevents circular dependencies where monitors mirror each other in a loop
-- **Source not available**: Ensure the source monitor is active and not already mirroring another display
-- **Performance**: Mirroring may impact performance depending on resolution and refresh rate differences
+| Left click | Select monitor |
+| Left drag | Move monitor (with snapping) |
+| Right click | Toggle monitor on/off |
+| Scroll wheel | Adjust monitor scale |
 
 ## Profiles
 
-HyprMon supports saving and loading monitor configurations as profiles, perfect for different setups like home, work, or presentation modes.
+Profiles are json files in `~/.config/nirimon/profiles/`. They store the full monitor layout (resolution, refresh, position, scale, transform, vrr, and EDID-derived identifiers for stable matching across port reassignments).
 
-### Creating Profiles
-- In the main UI, press `P` to save the current layout
-- Enter a descriptive name (e.g., "home", "work", "laptop")
-- Confirm overwrite if a profile with that name exists
-- Profiles are stored in `~/.config/hyprmon/profiles/`
-
-### Using Profiles
 ```bash
-# Quick switch via command line (perfect for keybindings)
-hyprmon --profile home
-hyprmon --profile work
-hyprmon --profile laptop-only
-
-# Interactive profile menu - shows all saved profiles
-hyprmon profiles
+nirimon -profile home
+nirimon -profile work
+nirimon -profile docked
+nirimon profiles            # interactive menu
 ```
 
-The profile menu allows you to:
-- Select and apply any saved profile
-- Delete profiles with 'D' key
-- Open the full UI for creating new profiles
+For clamshell-style switching on lid open/close, bind these to your niri keybinds in your niri config:
 
-### Hyprland Keybindings
-Add these to your `hyprland.conf` for quick profile switching:
-```
-bind = $mainMod, F1, exec, hyprmon --profile home
-bind = $mainMod, F2, exec, hyprmon --profile work
-bind = $mainMod, F3, exec, hyprmon --profile laptop
-bind = $mainMod, F4, exec, hyprmon profiles
+```kdl
+binds {
+    Mod+F1 { spawn "nirimon" "-profile" "home"; }
+    Mod+F2 { spawn "nirimon" "-profile" "work"; }
+}
 ```
 
-### Laptop Lid / Clamshell Mode
+## What is not supported under niri
 
-HyprMon profiles can be used for laptop clamshell mode by combining them with Hyprland's lid switch bindings. Create two profiles — one for docked use (laptop display off, external monitor only) and one for laptop-only use — then add these lines to your `hyprland.conf`:
+- **Config writes.** niri's main config (`config.kdl`) is one block-structured file with no include directive, and `niri msg action load-config-file --path X` replaces the active config wholesale rather than merging. nirimon stays out of that file entirely. Profile json is the only persistent state it owns.
+- **Native mirror.** niri 26.04 has no equivalent of `monitor=...,mirror,<source>`. The mirror picker still saves the field to profile json so the data round-trips, but `applyMonitor` ignores it and logs a warning.
+- **HDR / bitdepth / color management.** niri configures these via separate KDL syntax (`output { color-format ... }` etc.) that does not map cleanly to the hyprmon-era `monitor=...,bitdepth,cm,sdrbrightness` parameters. The fields stay on the Monitor struct for profile json round-trip but are not applied.
 
-```
-bindl = , switch:on:Lid Switch, exec, hyprmon --profile docked
-bindl = , switch:off:Lid Switch, exec, hyprmon --profile laptop
-```
+## Niri-specific quirks the apply path handles
 
-When the lid closes, HyprMon will apply the "docked" profile, disable the laptop display, save the configuration, and automatically migrate workspaces to the external monitor. When the lid opens, the "laptop" profile restores the internal display.
+- **Exact mode string snap.** niri silently no-ops on a non-matching mode string. The apply path re-fetches the live mode list and emits the exact "WxH@HHH.MMM" form (formatted from millihertz, not float) closest to the wanted refresh within 1 Hz. A larger delta returns an error rather than picking the wrong rate.
+- **EDID-first naming.** niri accepts both `niri msg output DP-3 mode ...` and `niri msg output "LG Electronics LG ULTRAGEAR+ 601NTQDH7820" mode ...`. The latter survives connector reassignment, so nirimon prefers EDIDName at apply time and falls back to the connector Name. For monitors without a serial niri uses the literal word "Unknown" as the third segment.
+- **Workspace migration.** niri evacuates workspaces from disabled outputs automatically, so the hyprmon-era pre/post snapshot dance and `moveworkspacetomonitor` calls are dropped.
 
-> **Note**: You may need to set `HandleLidSwitch=ignore` in `/etc/systemd/logind.conf` to prevent systemd from suspending the laptop when the lid closes.
+## Profile format
 
-### Stable monitor matching with `desc:` format
-
-By default, HyprMon writes monitor lines keyed by connector name (e.g., `monitor=DP-9,…`). For daisy-chained or otherwise indistinguishable monitors, the kernel may assign connector names in a different order across reboots or replugs, which swaps monitor positions.
-
-Hyprland supports matching by EDID description instead:
-
-```
-monitor=desc:Dell Inc. DELL U3419W 5HJB6T2,3440x1440@60,0x0,1.00
-```
-
-To opt in per monitor:
-
-1. Select the monitor and press `c` (or `d`) to open advanced settings.
-2. Toggle **Write as desc:** to On.
-3. Save your configuration (`S`) to write `hyprland.conf` in the new format.
-
-The toggle is unavailable when the monitor has no EDID description, when two or more connected monitors share the same description (typically identical monitors without a serial number), or when the description contains characters Hyprland cannot parse. The preference persists across sessions in `~/.config/hyprmon/settings.json` and is also stored inside any profile you save that includes the monitor.
-
-Live application via `hyprctl` continues to use connector names — the `desc:` format applies only to the persisted `hyprland.conf`.
-
-## Configuration
-
-HyprMon reads and writes to your Hyprland configuration file. The location is determined in this order:
-
-1. `$HYPRLAND_CONFIG` environment variable
-2. `~/.config/hypr/hyprland.conf` (default)
-
-### Backup Files
-
-Before any configuration changes, HyprMon creates a backup:
-- Location: `hyprland.conf.bak.<timestamp>`
-- These backups are never automatically deleted
-
-## How It Works
-
-1. **Reading**: HyprMon uses `hyprctl monitors -j` to read current monitor configuration
-2. **Applying**: Live changes use `hyprctl keyword monitor ...` commands
-3. **Saving**: Updates only the `monitor=` lines in your hyprland.conf
-4. **Rollback**: Maintains previous state for quick reversion
-
-## Terminal Requirements
-
-- Requires a terminal with SGR mouse support
-- If using tmux, enable mouse mode: `set -g mouse on`
-- Recommended terminal size: 80×24 or larger
-
-## Safety Features
-
-- **Automatic Backups**: Creates timestamped backups before any config changes
-- **Safe Apply**: Preview changes before applying
-- **Rollback Support**: Quick revert to last working configuration
-- **Non-destructive**: Only modifies monitor lines in config
-
-## Troubleshooting
-
-### Monitors Not Detected
-- Ensure `hyprctl` is available and Hyprland is running
-- Try installing `wlr-randr` for additional monitor detection
-
-### Mouse Not Working
-- Enable mouse support in your terminal
-- For tmux users: Add `set -g mouse on` to your tmux.conf
-
-### Changes Not Persisting
-- Check write permissions for your hyprland.conf
-- Verify the config path with `echo $HYPRLAND_CONFIG`
-
-## Future Features (Roadmap)
-
-- [x] Monitor profiles (Home, Work, Presentation modes)
-- [x] Advanced display settings (color depth, HDR, VRR, rotation)
-- [x] DPI-aware positioning (accounts for monitor scale in layout)
-- [x] Resolution and refresh rate picker
-- [x] Monitor mirroring with circular dependency prevention
-- [ ] Alignment menu (distribute, same size, etc.)
-- [ ] Auto-switching profiles on monitor hotplug
-
-## License
-
-Apache License 2.0 - See [LICENSE](LICENSE) file for details
-
-Copyright 2025 Eran Sandler
-
-## Development
-
-### Setting up development environment
-```bash
-git clone https://github.com/eransandler/hyprmon.git
-cd hyprmon
-make deps        # Install dependencies
-make hooks       # Install git pre-commit hooks
-make build       # Build the application
+```json
+{
+  "name": "home",
+  "monitors": [
+    {
+      "name": "DP-3",
+      "hardware_id": "LG Electronics/LG ULTRAGEAR+/601NTQDH7820",
+      "make": "LG Electronics",
+      "model": "LG ULTRAGEAR+",
+      "PxW": 2560, "PxH": 1440, "Hz": 240.083, "Scale": 1.0,
+      "X": 0, "Y": 1504,
+      "Active": true,
+      "EDIDName": "LG Electronics LG ULTRAGEAR+ 601NTQDH7820",
+      "Modes": [{"W": 2560, "H": 1440, "Hz": 240.083}, ...],
+      "Transform": 0, "VRR": 0
+    }
+  ],
+  "created_at": "2025-11-15T15:36:56+01:00",
+  "updated_at": "2026-05-11T22:00:00+02:00"
+}
 ```
 
-### CI/CD Workflows
-
-- **CI**: Runs on every push to main - tests, linting, build verification
-- **Release**: Only runs on version tags (v*) - builds binaries and creates GitHub release
-- **PR Checks**: Runs on pull requests - comprehensive testing and security scanning
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit pull requests or open issues for bugs and feature requests.
+Matching across runs is by `hardware_id` (Make/Model/Serial), so port reassignment between reboots is handled transparently. The connector `name` and `EDIDName` are refreshed from live niri data at apply time.
 
 ## Acknowledgments
 
-Built with:
-- [Bubble Tea](https://github.com/charmbracelet/bubbletea) - Terminal UI framework
-- [Lip Gloss](https://github.com/charmbracelet/lipgloss) - Style definitions
-- [Hyprland](https://hyprland.org/) - Wayland compositor
+- [hyprmon](https://github.com/erans/hyprmon) by Eran Sandler, the codebase nirimon forked from
+- [Bubble Tea](https://github.com/charmbracelet/bubbletea) and [Lip Gloss](https://github.com/charmbracelet/lipgloss) for the TUI framework
+- [niri](https://github.com/YaLTeR/niri) by Ivan Molodetskikh
+
+## License
+
+Apache 2.0 (inherited from hyprmon). See LICENSE.

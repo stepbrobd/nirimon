@@ -172,6 +172,9 @@ func (m mirrorPickerModel) View() string {
 
 	title := fmt.Sprintf("Mirror Configuration for %s", m.currentMonitor)
 	b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("12")).Render(title))
+	b.WriteString("\n")
+	hintStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("208")).Italic(true)
+	b.WriteString(hintStyle.Render("(no effect on niri; saved in profile json but not applied)"))
 	b.WriteString("\n\n")
 
 	if len(m.availableMonitors) == 1 {

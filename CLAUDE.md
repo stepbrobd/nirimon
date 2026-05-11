@@ -1,179 +1,104 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Guidance for Claude Code when working with this repository.
 
 ## Project Overview
 
-HyprMon is a TUI (Terminal User Interface) tool for configuring monitors on Arch Linux running Wayland with Hyprland. It provides a visual "desk map" where users can arrange monitors using keyboard and mouse controls, with real-time application to Hyprland.
+nirimon is a TUI tool for arranging monitors under the niri Wayland compositor. It is a niri-only fork of hyprmon by Eran Sandler. All hyprctl call-sites were replaced with `niri msg ...` invocations; all on-disk config writing was removed. Profile json is the only persistent state nirimon owns.
+
+## Apply-only, no config writes
+
+niri has no include directive in its KDL config, and `niri msg action load-config-file --path` replaces the active config wholesale rather than merging. The user's `~/.config/niri/config.kdl` is also NixOS-managed via home-manager (clobbered on switch). For both reasons, nirimon does not write to any niri config file. Monitor changes are applied via `niri msg output ...` calls (runtime-temporary, lost on niri reload); profile json is the source of truth, and the user re-applies after niri restart with `nirimon -profile <name>`.
+
+There is no Save keybind. Apply (A) is the only application path, P saves a profile, O opens the profiles page.
 
 ## Build and Development Commands
 
 ```bash
-# Build the application
-make build
-
-# Run the application
-make run
-
-# Run tests
-make test
-
-# Format code
-make fmt
-
-# Run linting
-make lint
-
-# Check formatting without fixing
-make fmt-check
-
-# Install dependencies
-make deps
-
-# Development build with debug info
-make dev
-
-# Build for multiple platforms (Linux amd64 and arm64)
-make build-all
-
-# Install git hooks
-make hooks
-
-# Install to system (/usr/local/bin)
-make install
-
-# Run profile selection menu
-make profiles
-
-# Get currently focused monitor
-./hyprmon --active-monitor
-
-# List profiles with active profile marked
-./hyprmon --list-profiles
+make build            # build to ./bin/nirimon
+make run              # build and launch the TUI
+make test             # go test ./...
+make fmt              # go fmt ./...
+make fmt-check        # fail if anything needs formatting
+make vet              # go vet ./...
+make lint             # golangci-lint if installed, otherwise warn
+make hooks            # install pre-commit + pre-push hooks
+make install          # install to /usr/local/bin
+./nirimon --active-profile    # print currently active profile (or empty)
+./nirimon --list-profiles     # one per line, active marked "*"
 ```
 
-## Architecture Overview
+## Architecture
 
-### Core Components
+| File | Role |
+|------|------|
+| `main.go` | CLI flags + Bubble Tea entry point |
+| `niri.go` | Everything that talks to niri ipc: readMonitors, applyMonitor, snapMode, transform mapping, the `execNiri`/`execNiriJSON` wrappers, and the rollback state |
+| `models.go` | Monitor struct, world/grid types, Bubble Tea model and messages, drag/snap math |
+| `profiles.go` | Profile json io and the profile-selection menu |
+| `hardware_id.go` | buildHardwareID, disambiguateHardwareIDs, resolveProfileMonitors, profile migration helpers, DisplayLabel |
+| `update.go` | Bubble Tea Update for the main UI |
+| `view.go` | Bubble Tea View for the main UI |
+| `advanced_settings.go` | The C/D dialog (bit depth, color mode, SDR sliders, VRR, transform). Most fields are kept for profile json round-trip but have no effect on a niri apply since niri configures these via separate KDL syntax |
+| `mode_picker.go` | F key: resolution + refresh selection |
+| `scale_picker.go` | R key: DPI scale selection |
+| `mirror_picker.go` | M key: mirror configuration. niri has no native mirror, so this dialog records the choice in profile json but applyMonitor ignores it and logs a warning |
+| `profile_input.go` | P key: name-input modal for new profiles |
+| `version.go` | Build-time version metadata via -ldflags |
 
-1. **Main Entry Point** (`main.go`):
-   - Handles CLI flags: `--profile`, `--profiles`, `--list-profiles`, `--version`, `--cfg`
-   - Orchestrates between profile menu and main UI
-   - Uses Bubble Tea framework for TUI
+## Monitor identity
 
-2. **Monitor Management** (`hyprland.go`):
-   - Interfaces with Hyprland via `hyprctl` commands
-   - `readMonitors()`: Fetches current monitor configuration from Hyprland
-   - `applyMonitor()`: Applies monitor settings live to Hyprland
-   - `writeConfig()`: Persists monitor configuration to hyprland.conf
-   - Handles workspace migration when monitors are added/removed
+| Field | Stability | Used for |
+|-------|-----------|----------|
+| `Name` | Unstable. Kernel-assigned (DP-1, eDP-1). Changes across replug/reboot/cable flip. | Display in TUI; fallback at apply when EDIDName is empty |
+| `HardwareID` | Stable. `<make>/<model>/<serial>` or `<make>/<model>` if no serial. Disambiguated with `/#N` for duplicates. | Profile matching across runs (the primary key) |
+| `EDIDName` | Stable. `<make> <model> <serial>` (or `<make> <model> Unknown` when serial is null). Matches the exact identifier niri itself uses. | Apply-time output identifier; preferred over Name |
+| `Alias` | User-set | Optional display label in the TUI |
 
-3. **Profile System** (`profiles.go`):
-   - Stores monitor configurations as JSON in `~/.config/hyprmon/profiles/`
-   - Profile menu with reordering, renaming, and deletion capabilities
-   - `applyProfile()`: Loads and applies saved monitor configurations
-   - Custom profile ordering preserved in `.profile_order` file
+Both `Name` and `EDIDName` are refreshed from live niri data inside `resolveProfileMonitors` at apply time, so a port rename between save and apply is handled.
 
-4. **UI Models** (`models.go`, `view.go`):
-   - Main `model` struct: Manages monitor layout UI state
-   - Visual monitor representation with proportional scaling
-   - Grid-based movement and snapping system
-   - Mouse and keyboard input handling
+## niri ipc contract
 
-5. **Advanced Settings** (`advanced_settings.go`):
-   - Dialog for HDR, color management, VRR, transform settings
-   - `advancedSettingsModel`: Separate Bubble Tea model for settings dialog
+`niri msg --json outputs` returns a JSON **object** keyed by output name (not an array). Notable nullable fields:
+- `serial` is null when EDID has no serial (laptop panels)
+- `current_mode` is null when the output is disabled (otherwise an int index into the same output's `modes` array)
+- `logical` is null when the output is disabled (otherwise has `x, y, width, height, scale, transform`)
 
-6. **Mode Picker** (`mode_picker.go`):
-   - Resolution and refresh rate selection UI
-   - Fetches available modes from Hyprland
+The IPC emits transform as TitleCase strings ("Normal", "Flipped-90"). The CLI accepts the lowercase kebab-case form ("normal", "flipped-90"). `parseNiriTransform` reads case-insensitively; `niriTransformString` emits the lowercase form for apply.
 
-7. **Scale Picker** (`scale_picker.go`):
-   - DPI scaling selection with preset values (0.5x to 3.0x)
+`refresh_rate` is in millihertz. The apply path formats mode strings directly from the integer (`%d.%03d`) so the result byte-matches what niri reports - niri silently no-ops on a non-exact mode string.
 
-## Key Technical Details
+## Mode-string snap
 
-### Monitor Data Flow
-1. Hyprland → `hyprctl monitors -j` → `hyprMonitor` struct → `Monitor` struct (with HardwareID from EDID)
-2. User edits in UI → `Monitor` struct updates → `hyprctl keyword monitor` → Hyprland (uses connector Name)
-3. Save action → `Monitor` struct → Update hyprland.conf monitor lines (uses connector Name)
-4. Profile save/load → JSON keyed by HardwareID for stable matching across port changes
-5. Per-monitor `UseDescFormat` preference: stored by HardwareID in `~/.config/hyprmon/settings.json` and also serialized into profile JSON; when true, `generateMonitorLine` writes `monitor=desc:<description>,…` to hyprland.conf in place of the connector name. `applyMonitor` is unaffected — live `hyprctl keyword monitor` continues to use the connector name.
+`snapMode(modes, w, h, wantedHz)`:
+1. Filter modes by exact W and H match
+2. Pick the one with smallest |hz - wantedHz|
+3. Return an error if no match is within 1 Hz
 
-### Profile Storage Structure
+This is the riskiest piece of the apply path; a returned error surfaces in the TUI rather than silently leaving the monitor at the wrong refresh.
+
+## Profile json structure
+
 ```json
 {
-  "name": "profile_name",
-  "monitors": [...],
-  "created_at": "2025-01-21T...",
-  "updated_at": "2025-01-21T..."
+  "name": "home",
+  "monitors": [
+    {"name": "DP-3", "hardware_id": "...", "make": "...", "model": "...",
+     "serial": "...", "PxW": 2560, "PxH": 1440, "Hz": 240.083, "Scale": 1.0,
+     "X": 0, "Y": 0, "Active": true, "EDIDName": "...", "Modes": [...],
+     "Transform": 0, "VRR": 0, "IsMirrored": false, "MirrorSource": "",
+     "MirrorTargets": []}
+  ],
+  "created_at": "2025-11-15T15:36:56+01:00",
+  "updated_at": "2026-05-11T22:00:00+02:00"
 }
 ```
 
-### Hyprland Integration
-- Uses `hyprctl` for all monitor operations (no direct Wayland protocol)
-- Monitor command format: `monitor=NAME,WIDTHxHEIGHT@REFRESH,XxY,SCALE[,options]`
-- Advanced options: bitdepth, cm (color mode), sdrbrightness, sdrsaturation, vrr, transform
-
-### Monitor Identity Fields
-- `Name`: Connector name (e.g., `DP-3`) - ephemeral, used only for hyprctl commands
-- `HardwareID`: Stable EDID fingerprint (`Make/Model/Serial`) - used for profile matching
-- `Make`: EDID manufacturer (e.g., "Dell Inc.")
-- `Model`: EDID model name (e.g., "DELL U3419W")
-- `Serial`: EDID serial number (e.g., "5HJB6T2") - may be empty
-- `Alias`: Optional user-friendly display name
-- `EDIDName`: Full Hyprland description string (kept for backward compat)
-
-### UI Framework
-- Built with Bubble Tea (Model-Update-View pattern)
-- Lipgloss for styling and layout
-- Mouse support via SGR protocol
-- Responsive terminal layouts
-
-## Testing
-
-Run the test suite with:
-```bash
-make test
-# Or directly with go test
-go test -v ./...
-```
-
-## Monitor Active State Detection
-
-The codebase tracks active/focused monitors through the Hyprland JSON API:
-- `hyprMonitor.Focused`: Boolean indicating if a monitor has focus
-- `hyprMonitor.Disabled`: Boolean indicating if a monitor is disabled
-- Used when displaying profiles or current monitor status
-
-### New Features Added
-
-#### Active Monitor Detection
-- `--active-monitor` flag: Returns the name of the currently focused monitor
-- `getFocusedMonitor()` function in hyprland.go queries Hyprland and returns focused monitor name
-- Useful for scripting and determining which monitor has focus
-
-#### Active Profile Detection
-- Profiles menu now shows `*` after the currently active profile name
-- `--list-profiles` flag shows `*` after the active profile
-- `getCurrentActiveProfile()` function compares current monitor configuration with saved profiles
-- `compareMonitorConfigurations()` helper function compares monitor arrays for profile matching
-- Active profile detection works by comparing resolution, position, scale, refresh rate, and active state
-
-### EDID-Based Monitor Identification
-- Monitors are identified by `HardwareID` (composite of `Make/Model/Serial` from EDID data)
-- `HardwareID` is stable across port changes and reboots, unlike connector names (e.g., DP-3)
-- When serial is empty (common for laptop panels): format is `Make/Model`
-- Duplicate monitors (same make+model, no serial) get `/#N` suffix sorted by connector name
-- `DisplayLabel()` method returns: Alias > Model > Name (for UI display)
-- Profiles match by `HardwareID` when available, falling back to connector `Name` for legacy profiles
-- Legacy profiles are auto-migrated with `HardwareID` data when accessed
-- `resolveProfileMonitors()` maps saved HardwareIDs to current connector names when applying profiles
+Compatible with hyprmon-era profile json. Round-trip identity (except for `updated_at`) is a validation requirement.
 
 ## Important File Paths
 
-- Configuration: `~/.config/hypr/hyprland.conf` (or `$HYPRLAND_CONFIG`)
-- Profiles: `~/.config/hyprmon/profiles/` (or custom via `--cfg` flag)
-- Profile order: `~/.config/hyprmon/profiles/.profile_order`
-- Config backups: `hyprland.conf.bak.<timestamp>`
-- HyprMon settings: `~/.config/hyprmon/settings.json` (or custom via `--cfg` flag) — per-monitor preferences keyed by HardwareID
+- Profiles: `~/.config/nirimon/profiles/` (overridden by `-cfg <dir>`)
+- Profile ordering: `~/.config/nirimon/profiles/.profile_order`
+
+There is no nirimon settings file, no config file at `~/.config/niri/*` is written, and there are no backup files.
