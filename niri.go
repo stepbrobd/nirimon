@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"os/exec"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -148,7 +150,7 @@ func execNiri(args ...string) ([]byte, error) {
 }
 
 // execNiriJSON runs `niri msg --json <args>` and decodes the stdout JSON
-func execNiriJSON(result interface{}, args ...string) error {
+func execNiriJSON(result any, args ...string) error {
 	full := append([]string{"--json"}, args...)
 	output, err := execNiri(full...)
 	if err != nil {
@@ -160,10 +162,195 @@ func execNiriJSON(result interface{}, args ...string) error {
 	return nil
 }
 
-// readMonitors is implemented in a follow-up commit; this stub keeps callers
-// compiling so the rest of the renames can land first
+// niriOutput mirrors the schema returned by `niri msg --json outputs`; the
+// command emits a JSON object keyed by output name, not an array, and several
+// fields are nullable when the output is unconfigured (current_mode, logical)
+// or when EDID metadata is absent (serial on a laptop panel)
+type niriOutput struct {
+	Name         string       `json:"name"`
+	Make         string       `json:"make"`
+	Model        string       `json:"model"`
+	Serial       *string      `json:"serial"`
+	PhysicalSize [2]int       `json:"physical_size"`
+	Modes        []niriMode   `json:"modes"`
+	CurrentMode  *int         `json:"current_mode"`
+	IsCustomMode bool         `json:"is_custom_mode"`
+	VRRSupported bool         `json:"vrr_supported"`
+	VRREnabled   bool         `json:"vrr_enabled"`
+	Logical      *niriLogical `json:"logical"`
+}
+
+type niriMode struct {
+	Width       int  `json:"width"`
+	Height      int  `json:"height"`
+	RefreshRate int  `json:"refresh_rate"` // in millihertz
+	IsPreferred bool `json:"is_preferred"`
+}
+
+type niriLogical struct {
+	X         int     `json:"x"`
+	Y         int     `json:"y"`
+	Width     int     `json:"width"`
+	Height    int     `json:"height"`
+	Scale     float64 `json:"scale"`
+	Transform string  `json:"transform"`
+}
+
+// parseNiriTransform maps niri's JSON transform strings (TitleCase, e.g.
+// "Normal", "Flipped-90") to hyprmon's int codes 0-7. Case and the optional
+// hyphen are tolerated since the IPC and CLI capitalize differently
+func parseNiriTransform(s string) int {
+	s = strings.ToLower(s)
+	s = strings.ReplaceAll(s, "-", "")
+	s = strings.ReplaceAll(s, "_", "")
+	switch s {
+	case "normal":
+		return 0
+	case "90":
+		return 1
+	case "180":
+		return 2
+	case "270":
+		return 3
+	case "flipped":
+		return 4
+	case "flipped90":
+		return 5
+	case "flipped180":
+		return 6
+	case "flipped270":
+		return 7
+	default:
+		return 0
+	}
+}
+
+// niriModeToMode converts a single niri mode entry; millihertz is divided by
+// 1000 to land in the float32 Hz field the rest of the codebase uses
+func niriModeToMode(m niriMode) Mode {
+	return Mode{
+		W:  uint32(m.Width),
+		H:  uint32(m.Height),
+		Hz: float32(float64(m.RefreshRate) / 1000.0),
+	}
+}
+
+// buildEDIDName produces the space-separated "make model serial" form niri
+// accepts as an output identifier; serial is omitted when absent
+func buildEDIDName(make_, model string, serial *string) string {
+	parts := []string{strings.TrimSpace(make_), strings.TrimSpace(model)}
+	if serial != nil {
+		if s := strings.TrimSpace(*serial); s != "" {
+			parts = append(parts, s)
+		}
+	}
+	out := ""
+	for _, p := range parts {
+		if p == "" {
+			continue
+		}
+		if out == "" {
+			out = p
+		} else {
+			out = out + " " + p
+		}
+	}
+	return out
+}
+
 func readMonitors() ([]Monitor, error) {
-	return nil, fmt.Errorf("readMonitors not yet implemented for niri")
+	var outputs map[string]niriOutput
+	if err := execNiriJSON(&outputs, "outputs"); err != nil {
+		return nil, err
+	}
+
+	// sort by name for deterministic ordering across runs
+	names := make([]string, 0, len(outputs))
+	for name := range outputs {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	monitors := make([]Monitor, 0, len(names))
+	for _, name := range names {
+		out := outputs[name]
+
+		modes := make([]Mode, 0, len(out.Modes))
+		for _, m := range out.Modes {
+			modes = append(modes, niriModeToMode(m))
+		}
+
+		serial := ""
+		if out.Serial != nil {
+			serial = *out.Serial
+		}
+
+		monitor := Monitor{
+			Name:       out.Name,
+			Make:       out.Make,
+			Model:      out.Model,
+			Serial:     serial,
+			HardwareID: buildHardwareID(out.Make, out.Model, serial),
+			EDIDName:   buildEDIDName(out.Make, out.Model, out.Serial),
+			Modes:      modes,
+			Active:     out.Logical != nil,
+			VRR: func() int {
+				if out.VRREnabled {
+					return 1
+				}
+				return 0
+			}(),
+			// mirror fields are inert under niri; preserved for profile JSON
+			// round-trip and updated only via the TUI mirror picker
+			IsMirrored:    false,
+			MirrorSource:  "",
+			MirrorTargets: []string{},
+		}
+
+		// current_mode is an index into the modes array when the output is
+		// enabled; when null, fall back to the preferred mode so the TUI has
+		// sensible default dimensions to render even for a disabled output
+		modeIdx := -1
+		if out.CurrentMode != nil {
+			modeIdx = *out.CurrentMode
+		} else {
+			for i, m := range out.Modes {
+				if m.IsPreferred {
+					modeIdx = i
+					break
+				}
+			}
+		}
+		if modeIdx >= 0 && modeIdx < len(out.Modes) {
+			monitor.PxW = uint32(out.Modes[modeIdx].Width)
+			monitor.PxH = uint32(out.Modes[modeIdx].Height)
+			monitor.Hz = float32(float64(out.Modes[modeIdx].RefreshRate) / 1000.0)
+		}
+
+		if out.Logical != nil {
+			monitor.X = int32(out.Logical.X)
+			monitor.Y = int32(out.Logical.Y)
+			monitor.Scale = float32(out.Logical.Scale)
+			monitor.Transform = parseNiriTransform(out.Logical.Transform)
+		} else {
+			// disabled outputs still need a usable scale for the TUI; default
+			// to 1.0 rather than leaving the field zero which would divide by
+			// zero in the world-bounds math
+			monitor.Scale = 1.0
+		}
+
+		monitors = append(monitors, monitor)
+	}
+
+	disambiguateHardwareIDs(monitors)
+
+	if s, err := loadSettings(); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: failed to load nirimon settings: %v\n", err)
+	} else {
+		applyMonitorPrefs(monitors, s)
+	}
+
+	return monitors, nil
 }
 
 // applyMonitor is implemented in a follow-up commit
@@ -180,9 +367,24 @@ func applyMonitors(monitors []Monitor) error {
 	return nil
 }
 
-// getAvailableModes will be implemented alongside readMonitors
+// getAvailableModes returns the mode list for one output formatted as
+// "WxH@Hz.HHH" so the existing mode picker (which speaks the hyprland string
+// form) can consume them without further conversion
 func getAvailableModes(monitorName string) ([]string, error) {
-	return nil, fmt.Errorf("getAvailableModes not yet implemented for %s", monitorName)
+	var outputs map[string]niriOutput
+	if err := execNiriJSON(&outputs, "outputs"); err != nil {
+		return nil, err
+	}
+	out, ok := outputs[monitorName]
+	if !ok {
+		return nil, fmt.Errorf("monitor %s not found", monitorName)
+	}
+	modes := make([]string, 0, len(out.Modes))
+	for _, m := range out.Modes {
+		hz := float64(m.RefreshRate) / 1000.0
+		modes = append(modes, fmt.Sprintf("%dx%d@%.3f", m.Width, m.Height, hz))
+	}
+	return modes, nil
 }
 
 // the following are hyprmon-era call-site stubs; nirimon is apply-only so
