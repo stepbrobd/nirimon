@@ -197,16 +197,10 @@ func (m model) renderHelp() string {
 	// Calculate visible content based on scroll offset
 	totalLines := len(allLines)
 	contentHeight := viewportHeight - 5 // Reserve space for header/footer
-	maxScroll := totalLines - contentHeight
-	if maxScroll < 0 {
-		maxScroll = 0
-	}
+	maxScroll := max(totalLines-contentHeight, 0)
 
 	// Ensure scroll offset is within bounds
-	scrollOffset := m.HelpScrollOffset
-	if scrollOffset < 0 {
-		scrollOffset = 0
-	}
+	scrollOffset := max(m.HelpScrollOffset, 0)
 	if scrollOffset > maxScroll {
 		scrollOffset = maxScroll
 	}
@@ -256,13 +250,6 @@ func (m model) renderHelp() string {
 		MarginTop(1) // Add top margin to prevent cutoff
 
 	return helpStyle.Render(content)
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }
 
 func (m model) renderHeader() string {
@@ -580,7 +567,7 @@ func (m model) renderGuide(desktop [][]rune, guide guide) {
 	case "vertical":
 		x, _ := m.worldToTerm(guide.Value, 0)
 		if x >= 0 && x < len(desktop[0]) {
-			for y := 0; y < len(desktop); y++ {
+			for y := range desktop {
 				desktop[y][x] = '│'
 			}
 		}

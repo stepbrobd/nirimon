@@ -69,7 +69,7 @@ func (m *advancedSettingsModel) navigateDown() {
 	isHDR := strings.Contains(m.monitor.ColorMode, "hdr")
 	descDisabled := !canUseDescFormat(*m.monitor)
 
-	for i := 0; i < fieldCount; i++ {
+	for range fieldCount {
 		m.focusedField++
 		if m.focusedField >= fieldCount {
 			m.focusedField = 0
@@ -88,7 +88,7 @@ func (m *advancedSettingsModel) navigateUp() {
 	isHDR := strings.Contains(m.monitor.ColorMode, "hdr")
 	descDisabled := !canUseDescFormat(*m.monitor)
 
-	for i := 0; i < fieldCount; i++ {
+	for range fieldCount {
 		m.focusedField--
 		if m.focusedField < 0 {
 			m.focusedField = fieldCount - 1
@@ -369,10 +369,7 @@ func (m advancedSettingsModel) renderSDRBrightness() string {
 	if value == 0 {
 		value = 1.0 // Default
 	}
-	pos := int((value - 0.5) / 1.5 * float32(width))
-	if pos < 0 {
-		pos = 0
-	}
+	pos := max(int((value-0.5)/1.5*float32(width)), 0)
 	if pos >= width {
 		pos = width - 1
 	}
@@ -395,10 +392,7 @@ func (m advancedSettingsModel) renderSDRSaturation() string {
 	if value == 0 {
 		value = 1.0 // Default
 	}
-	pos := int((value - 0.5) / 1.0 * float32(width))
-	if pos < 0 {
-		pos = 0
-	}
+	pos := max(int((value-0.5)/1.0*float32(width)), 0)
 	if pos >= width {
 		pos = width - 1
 	}

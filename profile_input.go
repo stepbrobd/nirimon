@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -75,12 +76,10 @@ func (m profileInputModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			// Check if profile exists
 			existing, _ := listProfiles()
-			for _, profile := range existing {
-				if profile == name {
-					m.confirmOverride = true
-					m.existingName = name
-					return m, nil
-				}
+			if slices.Contains(existing, name) {
+				m.confirmOverride = true
+				m.existingName = name
+				return m, nil
 			}
 
 			return m, func() tea.Msg {
