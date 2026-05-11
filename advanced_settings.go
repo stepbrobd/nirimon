@@ -22,7 +22,6 @@ const (
 	fieldSDRSaturation
 	fieldVRR
 	fieldTransform
-	fieldUseDescFormat
 	fieldCount
 )
 
@@ -67,7 +66,6 @@ func (m advancedSettingsModel) Update(msg tea.Msg) (advancedSettingsModel, tea.C
 
 func (m *advancedSettingsModel) navigateDown() {
 	isHDR := strings.Contains(m.monitor.ColorMode, "hdr")
-	descDisabled := !canUseDescFormat(*m.monitor)
 
 	for range fieldCount {
 		m.focusedField++
@@ -77,16 +75,12 @@ func (m *advancedSettingsModel) navigateDown() {
 		if !isHDR && (m.focusedField == fieldSDRBrightness || m.focusedField == fieldSDRSaturation) {
 			continue
 		}
-		if descDisabled && m.focusedField == fieldUseDescFormat {
-			continue
-		}
 		return
 	}
 }
 
 func (m *advancedSettingsModel) navigateUp() {
 	isHDR := strings.Contains(m.monitor.ColorMode, "hdr")
-	descDisabled := !canUseDescFormat(*m.monitor)
 
 	for range fieldCount {
 		m.focusedField--
@@ -94,9 +88,6 @@ func (m *advancedSettingsModel) navigateUp() {
 			m.focusedField = fieldCount - 1
 		}
 		if !isHDR && (m.focusedField == fieldSDRBrightness || m.focusedField == fieldSDRSaturation) {
-			continue
-		}
-		if descDisabled && m.focusedField == fieldUseDescFormat {
 			continue
 		}
 		return
@@ -157,19 +148,6 @@ func (m *advancedSettingsModel) toggleValue() {
 
 	case fieldTransform:
 		m.monitor.Transform = (m.monitor.Transform + 1) % 8
-
-	case fieldUseDescFormat:
-		if canUseDescFormat(*m.monitor) {
-			m.monitor.UseDescFormat = !m.monitor.UseDescFormat
-			// Persist immediately so the setting survives across sessions
-			// even when the user never saves a profile.
-			if s, err := loadSettings(); err == nil {
-				setMonitorPref(s, m.monitor.HardwareID, MonitorPref{
-					UseDescFormat: m.monitor.UseDescFormat,
-				})
-				_ = saveSettings(s) // best-effort; UI flow continues on error
-			}
-		}
 	}
 }
 
@@ -288,26 +266,6 @@ func (m advancedSettingsModel) View() string {
 	label = "Transform:"
 	value = m.renderTransform()
 	if m.focusedField == fieldTransform {
-		content.WriteString(focusedLabelStyle.Render(label))
-		content.WriteString("  ")
-		content.WriteString(focusedValueStyle.Render(value))
-	} else {
-		content.WriteString(labelStyle.Render(label))
-		content.WriteString("  ")
-		content.WriteString(valueStyle.Render(value))
-	}
-	content.WriteString("\n")
-
-	// Write as desc:
-	label = "Write as desc:"
-	value, disabled := m.renderUseDescFormat()
-	if disabled {
-		dimLabelStyle := labelStyle.Foreground(lipgloss.Color("238"))
-		dimValueStyle := valueStyle.Foreground(lipgloss.Color("238"))
-		content.WriteString(dimLabelStyle.Render(label))
-		content.WriteString("  ")
-		content.WriteString(dimValueStyle.Render(value))
-	} else if m.focusedField == fieldUseDescFormat {
 		content.WriteString(focusedLabelStyle.Render(label))
 		content.WriteString("  ")
 		content.WriteString(focusedValueStyle.Render(value))
@@ -441,26 +399,4 @@ func (m advancedSettingsModel) renderTransform() string {
 		}
 	}
 	return "Normal"
-}
-
-// renderUseDescFormat returns (value, disabled). When disabled is true the
-// toggle cannot be flipped (the row is rendered dimmed by the caller) and
-// `value` explains why.
-func (m advancedSettingsModel) renderUseDescFormat() (string, bool) {
-	if m.monitor.EDIDName == "" {
-		return "(unavailable — no EDID description)", true
-	}
-	if m.monitor.HardwareID == "" {
-		return "(unavailable — no EDID description)", true
-	}
-	if strings.Contains(m.monitor.HardwareID, "/#") {
-		return "(unavailable — description not unique)", true
-	}
-	if sanitizeDesc(m.monitor.EDIDName) == "" {
-		return "(unavailable — description contains unsupported characters)", true
-	}
-	if m.monitor.UseDescFormat {
-		return "● On  ○ Off", false
-	}
-	return "○ On  ● Off", false
 }

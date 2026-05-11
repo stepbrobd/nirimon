@@ -17,8 +17,7 @@ const (
 	// niriTimeout bounds every `niri msg` invocation
 	niriTimeout = 5 * time.Second
 
-	// file permissions
-	configFileMode  = 0600
+	// file permissions for profile json
 	profileDirMode  = 0700
 	profileFileMode = 0600
 
@@ -64,49 +63,6 @@ func isValidColorMode(mode string) bool {
 		"":        true,
 	}
 	return validModes[mode]
-}
-
-// sanitizeDesc trims and validates an EDID description string; retained so the
-// advanced-settings dialog can still surface the "write as desc:" affordance
-// even though niri natively keys by EDID and the flag is a no-op at apply time
-func sanitizeDesc(s string) string {
-	s = strings.TrimSpace(s)
-	if s == "" {
-		return ""
-	}
-	for _, r := range s {
-		if r == ',' || r == '"' || r == '\n' || r < 0x20 {
-			return ""
-		}
-	}
-	return s
-}
-
-// canUseDescFormat mirrors the hyprmon-era check; the toggle now has no
-// runtime effect under niri but is retained for profile JSON compatibility
-func canUseDescFormat(m Monitor) bool {
-	if m.HardwareID == "" {
-		return false
-	}
-	if strings.Contains(m.HardwareID, "/#") {
-		return false
-	}
-	return sanitizeDesc(m.EDIDName) != ""
-}
-
-// applyMonitorPrefs merges per-monitor preferences from settings.json into the
-// monitor slice; the only preference today is the inert UseDescFormat flag
-func applyMonitorPrefs(monitors []Monitor, s *Settings) {
-	if s == nil {
-		return
-	}
-	for i := range monitors {
-		if monitors[i].HardwareID == "" {
-			continue
-		}
-		pref := getMonitorPref(s, monitors[i].HardwareID)
-		monitors[i].UseDescFormat = pref.UseDescFormat
-	}
 }
 
 // parseMode accepts both the hyprland "WxH@Hz" form and the niri
@@ -346,12 +302,6 @@ func readMonitors() ([]Monitor, error) {
 	}
 
 	disambiguateHardwareIDs(monitors)
-
-	if s, err := loadSettings(); err != nil {
-		fmt.Fprintf(os.Stderr, "warning: failed to load nirimon settings: %v\n", err)
-	} else {
-		applyMonitorPrefs(monitors, s)
-	}
 
 	return monitors, nil
 }
