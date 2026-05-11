@@ -382,7 +382,10 @@ func getAvailableModes(monitorName string) ([]string, error) {
 	modes := make([]string, 0, len(out.Modes))
 	for _, m := range out.Modes {
 		hz := float64(m.RefreshRate) / 1000.0
-		modes = append(modes, fmt.Sprintf("%dx%d@%.3f", m.Width, m.Height, hz))
+		// the trailing "Hz" suffix matches what hyprctl emitted and is what
+		// mode_picker.go's parser regex expects; without it parseDisplayModes
+		// returns an empty slice and the mode picker view panics
+		modes = append(modes, fmt.Sprintf("%dx%d@%.3fHz", m.Width, m.Height, hz))
 	}
 	return modes, nil
 }
