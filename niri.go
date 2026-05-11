@@ -14,8 +14,11 @@ import (
 )
 
 const (
-	// niriTimeout bounds every `niri msg` invocation
-	niriTimeout = 5 * time.Second
+	// niriTimeout bounds every `niri msg` invocation; generous because niri
+	// can block briefly while a prior mode/scale change settles, and the
+	// per-call cost of waiting is paid only on a state churn (the tool is
+	// not in any latency-sensitive hot path)
+	niriTimeout = 30 * time.Second
 
 	// file permissions for profile json
 	profileDirMode  = 0700
