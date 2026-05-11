@@ -222,7 +222,13 @@ func readMonitors() ([]Monitor, error) {
 	if err := execNiriJSON(&outputs, "outputs"); err != nil {
 		return nil, err
 	}
+	return outputsToMonitors(outputs), nil
+}
 
+// outputsToMonitors converts the parsed niri ipc shape into the slice the rest
+// of the codebase consumes; broken out from readMonitors so tests can drive
+// the parsing path with a fixture without shelling out to `niri msg`
+func outputsToMonitors(outputs map[string]niriOutput) []Monitor {
 	// sort by name for deterministic ordering across runs
 	names := make([]string, 0, len(outputs))
 	for name := range outputs {
@@ -302,8 +308,7 @@ func readMonitors() ([]Monitor, error) {
 	}
 
 	disambiguateHardwareIDs(monitors)
-
-	return monitors, nil
+	return monitors
 }
 
 // niriOutputName picks the EDID-style identifier when available; niri keys
