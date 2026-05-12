@@ -34,6 +34,7 @@ const (
 	desktopFooterHeight = 10
 )
 
+/*
 // isValidMonitorName guards against shell injection when the connector name is
 // embedded in a `niri msg output <name>` invocation
 func isValidMonitorName(name string) bool {
@@ -67,6 +68,7 @@ func isValidColorMode(mode string) bool {
 	}
 	return validModes[mode]
 }
+*/
 
 // parseMode accepts both the hyprland "WxH@Hz" form and the niri
 // "WxH@HHH.HHH" form, including an optional trailing "Hz" suffix
