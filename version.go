@@ -7,16 +7,13 @@ import (
 
 // Build variables - these are set via ldflags during build
 var (
-	Version   = "dev"     // Semantic version
-	GitCommit = "unknown" // Git commit hash
-	BuildDate = "unknown" // Build timestamp
+	Version   = "git" // Semantic version
 	GoVersion = runtime.Version()
 )
 
 // VersionInfo returns formatted version information
 func VersionInfo() string {
-	return fmt.Sprintf("nirimon %s (commit: %s, built: %s, go: %s)",
-		Version, GitCommit, BuildDate, GoVersion)
+	return fmt.Sprintf("nirimon %s (%s)", Version, GoVersion)
 }
 
 // ShortVersion returns just the version number
