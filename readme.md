@@ -45,6 +45,12 @@ sudo mv nirimon /usr/local/bin/
 popd
 ```
 
+Or if you must:
+
+```sh
+go install -ldflags="-s -w -X main.Version=0-unstable-$(date -u +%Y-%m-%d)+go" ysun.co/nirimon@latest
+```
+
 ## Usage
 
 Basically the same as hyprmon but a few features are stripped or not yet
