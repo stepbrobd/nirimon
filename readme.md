@@ -33,8 +33,7 @@ nix run github:stepbrobd/nirimon
 ```
 
 Or for persistent installation, check how its packaged without `gomod2nix` in
-[my own
-configuration](https://github.com/stepbrobd/inc/blob/master/pkgs/nirimon/default.nix].
+[my own configuration](https://github.com/stepbrobd/inc/blob/master/pkgs/nirimon/default.nix).
 
 Or if you are not using Nix/NixOS, build from source:
 
