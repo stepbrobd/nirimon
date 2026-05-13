@@ -14,6 +14,16 @@ or any other persistent Niri config file. Monitor application is via
 edit, `niri msg action load-config-file`, or restart) reverts them. Persistence
 belongs to the profile json files in `~/.config/nirimon/profiles/`.
 
+<img width="1709" height="1392" alt="nirimon tui" src="https://github.com/user-attachments/assets/0d3f8475-6afe-48a5-b981-305cfd917b81" />
+
+<img width="1709" height="1392" alt="nirimon resolution and refresh rate menu" src="https://github.com/user-attachments/assets/4621f74f-ec57-4ca3-bc55-0036a85d9c9a" />
+
+<img width="1709" height="1392" alt="nirimon display settings" src="https://github.com/user-attachments/assets/ab494414-282d-43cb-af1d-4e99eab575fc" />
+
+<img width="1709" height="1392" alt="nirimon profile selection menu" src="https://github.com/user-attachments/assets/3853ca67-529e-45ad-bc07-e9145e79c944" />
+
+<img width="1709" height="1392" alt="nirimon cli" src="https://github.com/user-attachments/assets/8e6d7616-f625-40af-a127-15e207300a8c" />
+
 ## Usage
 
 Basically the same as hyprmon but a few features are stripped or not yet
