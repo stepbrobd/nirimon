@@ -24,6 +24,28 @@ belongs to the profile json files in `~/.config/nirimon/profiles/`.
 
 <img width="1709" height="1392" alt="nirimon cli" src="https://github.com/user-attachments/assets/8e6d7616-f625-40af-a127-15e207300a8c" />
 
+## Installation
+
+To run nirimon in an ephemeral environment:
+
+```sh
+nix run github:stepbrobd/nirimon
+```
+
+Or for persistent installation, check how its packaged without `gomod2nix` in
+[my own
+configuration](https://github.com/stepbrobd/inc/blob/master/pkgs/nirimon/default.nix].
+
+Or if you are not using Nix/NixOS, build from source:
+
+```sh
+git clone --depth=1 https://github.com/stepbrobd/nirimon
+pushd nirimon
+go build -ldflags="-s -w -X main.Version=$(cat version.txt)"
+sudo mv nirimon /usr/local/bin/
+popd
+```
+
 ## Usage
 
 Basically the same as hyprmon but a few features are stripped or not yet
