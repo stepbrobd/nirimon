@@ -1,5 +1,10 @@
 # nirimon
 
+Binary Cache:
+
+- Cache: <https://cache.ysun.co>
+- Key: `cache.ysun.co-1:WxPYwT5g3kt9XhUhHPpNLZKI9HIOsVVAuqSHpok8Qt4=`
+
 nirimon is a fork of [hyprmon](https://github.com/erans/hyprmon) (Eran Sandler,
 Apache 2.0) that's intended to only work for
 [Niri](https://github.com/niri-wm/niri) just like hyprmon is only build for
