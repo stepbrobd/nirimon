@@ -90,6 +90,7 @@ type mirrorPickerModel struct {
 	selected          int      // Currently selected monitor index
 	currentMonitor    string   // Monitor being configured
 	currentSource     string   // Current mirror source (empty if not mirrored)
+	wlMirror          bool     // Whether wl-mirror is available to apply the mirror
 }
 
 func newMirrorPicker(currentMonitor string, currentSource string, allMonitors []Monitor) mirrorPickerModel {
@@ -124,6 +125,7 @@ func newMirrorPicker(currentMonitor string, currentSource string, allMonitors []
 		selected:          selected,
 		currentMonitor:    currentMonitor,
 		currentSource:     currentSource,
+		wlMirror:          mirrorAvailable(),
 	}
 }
 
@@ -173,8 +175,13 @@ func (m mirrorPickerModel) View() string {
 	title := fmt.Sprintf("Mirror Configuration for %s", m.currentMonitor)
 	b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("12")).Render(title))
 	b.WriteString("\n")
-	hintStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("208")).Italic(true)
-	b.WriteString(hintStyle.Render("(no effect on niri; saved in profile json but not applied)"))
+	if m.wlMirror {
+		hintStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("42")).Italic(true)
+		b.WriteString(hintStyle.Render("(applied via wl-mirror on apply; saved in profile json)"))
+	} else {
+		hintStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("208")).Italic(true)
+		b.WriteString(hintStyle.Render("(niri has no native mirror and wl-mirror is not in PATH; saved but not applied)"))
+	}
 	b.WriteString("\n\n")
 
 	if len(m.availableMonitors) == 1 {

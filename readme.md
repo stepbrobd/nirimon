@@ -73,24 +73,24 @@ nirimon -active-profile    # print the name of the currently matching profile
 
 Main UI:
 
-| Key               | Action                                        |
-| ----------------- | --------------------------------------------- |
-| Arrow keys / hjkl | Move selected monitor by the grid step        |
-| Shift + arrows    | Move by 10x grid step                         |
-| Tab / Shift-Tab   | Cycle through monitors                        |
-| G                 | Cycle grid size (1, 8, 16, 32, 64 px)         |
-| L                 | Cycle snap mode (Off, Edges, Centers, Both)   |
-| R                 | Open scale picker                             |
-| F                 | Open mode (resolution + refresh) picker       |
-| M                 | Open mirror configuration (no effect on niri) |
-| C / D             | Open advanced display settings dialog         |
-| Enter / Space     | Toggle the selected monitor on/off            |
-| A                 | Apply the current layout to niri now          |
-| Z                 | Revert to previous configuration              |
-| O                 | Open the profiles page                        |
-| P                 | Save current layout as a named profile        |
-| ?                 | Show help                                     |
-| Q / Ctrl-C        | Quit                                          |
+| Key               | Action                                      |
+| ----------------- | ------------------------------------------- |
+| Arrow keys / hjkl | Move selected monitor by the grid step      |
+| Shift + arrows    | Move by 10x grid step                       |
+| Tab / Shift-Tab   | Cycle through monitors                      |
+| G                 | Cycle grid size (1, 8, 16, 32, 64 px)       |
+| L                 | Cycle snap mode (Off, Edges, Centers, Both) |
+| R                 | Open scale picker                           |
+| F                 | Open mode (resolution + refresh) picker     |
+| M                 | Open mirror configuration (needs wl-mirror) |
+| C / D             | Open advanced display settings dialog       |
+| Enter / Space     | Toggle the selected monitor on/off          |
+| A                 | Apply the current layout to niri now        |
+| Z                 | Revert to previous configuration            |
+| O                 | Open the profiles page                      |
+| P                 | Save current layout as a named profile      |
+| ?                 | Show help                                   |
+| Q / Ctrl-C        | Quit                                        |
 
 ### Mouse
 
@@ -113,6 +113,42 @@ nirimon -profile work
 nirimon -profile docked
 nirimon profiles        # interactive menu
 ```
+
+### Mirroring
+
+Niri has
+[no native output mirroring](https://github.com/niri-wm/niri/wiki/Screencasting)
+the way Hyprland does. nirimon keeps hyprmon's mirror picker (press `M`) and the
+exact same profile schema, but applies the mirror by spawning
+[wl-mirror](https://github.com/Ferdi265/wl-mirror): for a monitor set to mirror
+another, nirimon launches `wl-mirror --fullscreen-output <target> <source>`,
+which captures the source output and shows it fullscreen on the target.
+
+wl-mirror must be on `PATH`. The Nix package wraps it in automatically; if you
+build from source, install wl-mirror yourself. When wl-mirror is missing the
+mirror picker still works and the choice is saved to the profile json, but it is
+not applied (the picker says so), so a profile stays portable to hyprmon.
+
+Because the mirror is an ordinary fullscreen Wayland window and not a
+compositor-level clone, it behaves differently from Hyprland's native mirror.
+Keep these gotchas in mind:
+
+- It is just a fullscreen window on the target output. niri does not pin you to
+  it: you can switch workspaces, focus other windows, or move the wl-mirror
+  window away, and the target stops showing the mirror until you switch back.
+- The mirror process is detached and keeps running after nirimon exits (so a
+  `nirimon -profile ...` from a keybind or hotplug hook leaves a working
+  mirror). nirimon tracks it in `$XDG_RUNTIME_DIR/nirimon/mirrors.json` and
+  tears it down on the next apply that disables the mirror. It is also cleared
+  on logout, or you can `pkill wl-mirror` by hand.
+- Scaling uses wl-mirror's `fit` mode: the whole source is always shown,
+  letterboxed when the aspect ratios differ. wl-mirror cannot aspect-distort to
+  fill the way Hyprland does, so expect black bars on mismatched ratios instead
+  of stretching.
+- If the source output is unplugged or turned off, wl-mirror exits; re-apply to
+  restart the mirror once the source is back.
+- Only active, non-mirrored monitors can be a source, and circular mirrors are
+  prevented, same as hyprmon.
 
 ### Niri
 

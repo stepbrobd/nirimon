@@ -438,10 +438,9 @@ func applyMonitor(m Monitor) error {
 		return fmt.Errorf("enable %s: %w", output, err)
 	}
 
-	if m.IsMirrored {
-		fmt.Fprintf(os.Stderr, "warning: niri has no native mirror; %s applied as a normal output\n", output)
-	}
-
+	// a mirrored target is still configured as a normal output here (its own
+	// mode/scale/position); the mirror itself is a wl-mirror process attached
+	// afterwards by reconcileMirrors, which needs the whole monitor set at once
 	modeStr, err := snapMode(out.Modes, m.PxW, m.PxH, m.Hz)
 	if err != nil {
 		return fmt.Errorf("snap mode for %s: %w", output, err)
@@ -475,6 +474,13 @@ func applyMonitors(monitors []Monitor) error {
 		if err := applyMonitor(m); err != nil {
 			return fmt.Errorf("failed to apply monitor %s: %w", m.Name, err)
 		}
+	}
+
+	// mirroring is reconciled last, once every output is on at its final mode,
+	// so wl-mirror attaches to outputs that already exist. a mirror failure is
+	// non-fatal: the layout itself applied, so we warn but do not roll back
+	if err := reconcileMirrors(monitors); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: mirror reconcile: %v\n", err)
 	}
 	return nil
 }
