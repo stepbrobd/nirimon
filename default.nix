@@ -1,6 +1,8 @@
 { lib
 , buildGoApplication
 , nix-gitignore
+, makeWrapper
+, wl-mirror
 }:
 
 buildGoApplication (lib.fix (finalAttrs: {
@@ -16,6 +18,13 @@ buildGoApplication (lib.fix (finalAttrs: {
     "-w"
     "-X main.Version=${finalAttrs.version}"
   ];
+
+  nativeBuildInputs = [ makeWrapper ];
+
+  postFixup = ''
+    wrapProgram $out/bin/nirimon --prefix PATH : "${lib.makeBinPath [ wl-mirror ]}"
+  '';
+
   meta = {
     description = "tui monitor configuration tool for niri with visual layout, drag-and-drop, and profile management";
     homepage = "https://github.com/stepbrobd/nirimon";
